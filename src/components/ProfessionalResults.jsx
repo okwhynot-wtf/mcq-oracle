@@ -140,8 +140,8 @@ function ProfessionalResults({ result, onStartOver }) {
                 )}
                 <div className="mt-3 flex items-center gap-4 text-sm text-red-600">
                   <span>Quality: {inputQuality.quality_level}</span>
-                  <span>Medical signals: {inputQuality.medical_signal_count}</span>
-                  <span>Confidence: {(inputQuality.confidence * 100).toFixed(0)}%</span>
+                  <span>Unique scores: {inputQuality.medical_signal_count}</span>
+                  <span>Score variance: {inputQuality.medical_signal_density?.toFixed(3) || '0'}</span>
                 </div>
               </div>
             </div>
