@@ -21,7 +21,7 @@ function ProfessionalResults({ result, onStartOver }) {
   // Debug: log the result structure
   console.log('Professional Result:', JSON.stringify(result, null, 2));
   
-  if (!result || result.error) {
+  if (!result || result.error || !result.success) {
     return (
       <div className="card p-8 text-center max-w-2xl mx-auto">
         <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
@@ -34,7 +34,13 @@ function ProfessionalResults({ result, onStartOver }) {
     );
   }
 
-  const { differential, geometry, metadata, clinical_pearls } = result;
+  // Extract from professional_result wrapper
+  const proResult = result.professional_result || {};
+  const differential = proResult.differential || [];
+  const geometry = proResult.geometry || null;
+  const metadata = proResult.metadata || result.metadata || {};
+  const clinical_pearls = proResult.clinical_pearls || [];
+  const selectedHypothesis = proResult.selected_hypothesis || differential[0] || null;
 
   const copyToClipboard = async (text, id) => {
     await navigator.clipboard.writeText(text);
@@ -50,10 +56,11 @@ function ProfessionalResults({ result, onStartOver }) {
   };
 
   const formatDifferentialForCopy = () => {
+    if (!differential || differential.length === 0) return '';
     return differential
       .map((dx, i) => {
-        const features = dx.key_features?.map(getDisplayText).join(', ') || '';
-        return `${i + 1}. ${dx.name} (${(dx.score * 100).toFixed(0)}%)${features ? ` - ${features}` : ''}`;
+        const findings = dx.findings_explained?.filter(f => f !== 'none').join(', ') || '';
+        return `${dx.rank || i + 1}. ${dx.name} (${(dx.score * 100).toFixed(0)}%)${findings ? ` - ${findings}` : ''}`;
       })
       .join('\n');
   };
@@ -65,26 +72,58 @@ function ProfessionalResults({ result, onStartOver }) {
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Differential Diagnosis</h2>
           <p className="text-slate-600">
-            {differential.length} diagnoses considered • {metadata?.model_version || 'MCQ Oracle'}
+            {differential.length} diagnoses considered • MCQ Oracle
           </p>
         </div>
-        <button
-          onClick={() => copyToClipboard(formatDifferentialForCopy(), 'all')}
-          className="btn btn-secondary flex items-center gap-2"
-        >
-          {copiedId === 'all' ? (
-            <>
-              <Check className="w-4 h-4" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4" />
-              Copy All
-            </>
-          )}
-        </button>
+        {differential.length > 0 && (
+          <button
+            onClick={() => copyToClipboard(formatDifferentialForCopy(), 'all')}
+            className="btn btn-secondary flex items-center gap-2"
+          >
+            {copiedId === 'all' ? (
+              <>
+                <Check className="w-4 h-4" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4" />
+                Copy All
+              </>
+            )}
+          </button>
+        )}
       </div>
+
+      {/* Selected Hypothesis */}
+      {selectedHypothesis && (
+        <div className="card border-l-4 border-l-green-500">
+          <div className="card-body">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-slate-900 text-lg">{selectedHypothesis.name}</h3>
+                <p className="text-slate-600 mt-1">
+                  Score: {(selectedHypothesis.score * 100).toFixed(0)}% • 
+                  Coverage: {(selectedHypothesis.coverage * 100).toFixed(0)}%
+                </p>
+                {selectedHypothesis.findings_explained?.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm text-slate-500">Explains:</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedHypothesis.findings_explained.filter(f => f !== 'none').map((finding, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">
+                          {getDisplayText(finding)}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Geometry Overview */}
       {geometry && (
@@ -135,81 +174,106 @@ function ProfessionalResults({ result, onStartOver }) {
       )}
 
       {/* Main Differential */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="font-semibold text-slate-900">Ranked Differential</h3>
-        </div>
-        <div className="divide-y divide-slate-100">
-          {differential.map((dx, idx) => (
-            <div 
-              key={idx}
-              className={`p-4 ${idx === 0 ? 'bg-primary-50' : 'hover:bg-slate-50'} transition-colors`}
-            >
-              <div className="flex items-start gap-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                  idx === 0 
-                    ? 'bg-primary-600 text-white' 
-                    : 'bg-slate-200 text-slate-600'
-                }`}>
-                  {idx + 1}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-4 mb-2">
-                    <h4 className={`font-semibold ${idx === 0 ? 'text-primary-900' : 'text-slate-900'}`}>
-                      {dx.name}
-                    </h4>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-sm font-medium text-slate-600">
-                        {(dx.score * 100).toFixed(0)}%
-                      </span>
-                      <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full ${getScoreColor(dx.score)}`}
-                          style={{ width: `${dx.score * 100}%` }}
-                        />
-                      </div>
-                    </div>
+      {differential.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <h3 className="font-semibold text-slate-900">Ranked Differential</h3>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {differential.map((dx, idx) => (
+              <div 
+                key={idx}
+                className={`p-4 ${idx === 0 ? 'bg-primary-50' : 'hover:bg-slate-50'} transition-colors`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    idx === 0 
+                      ? 'bg-primary-600 text-white' 
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {dx.rank || idx + 1}
                   </div>
                   
-                  {dx.reasoning && (
-                    <p className="text-sm text-slate-600 mb-2">{getDisplayText(dx.reasoning)}</p>
-                  )}
-                  
-                  {dx.key_features && dx.key_features.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {dx.key_features.map((feature, fidx) => (
-                        <span 
-                          key={fidx}
-                          className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs"
-                        >
-                          {getDisplayText(feature)}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-4 mb-2">
+                      <h4 className={`font-semibold ${idx === 0 ? 'text-primary-900' : 'text-slate-900'}`}>
+                        {dx.name}
+                      </h4>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-sm font-medium text-slate-600">
+                          {(dx.score * 100).toFixed(0)}%
                         </span>
-                      ))}
+                        <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${getScoreColor(dx.score)}`}
+                            style={{ width: `${dx.score * 100}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  
-                  {dx.red_flags && dx.red_flags.length > 0 && (
-                    <div className="mt-2 flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                      <div className="flex flex-wrap gap-1.5">
-                        {dx.red_flags.map((flag, fidx) => (
+                    
+                    {/* Coverage info */}
+                    {dx.coverage && (
+                      <p className="text-sm text-slate-500 mb-2">
+                        Coverage: {(dx.coverage * 100).toFixed(0)}%
+                      </p>
+                    )}
+                    
+                    {/* Findings explained */}
+                    {dx.findings_explained && dx.findings_explained.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {dx.findings_explained.filter(f => f !== 'none').map((feature, fidx) => (
                           <span 
                             key={fidx}
-                            className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-xs"
+                            className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs"
                           >
-                            {getDisplayText(flag)}
+                            ✓ {getDisplayText(feature)}
                           </span>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                    
+                    {/* Findings unexplained */}
+                    {dx.findings_unexplained && dx.findings_unexplained.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {dx.findings_unexplained.map((finding, fidx) => (
+                          <span 
+                            key={fidx}
+                            className="px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded text-xs"
+                          >
+                            ? {getDisplayText(finding)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Features */}
+                    {dx.features && (
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                        {dx.features.severity && (
+                          <span className={`px-2 py-0.5 rounded ${
+                            dx.features.severity === 'life_threatening' ? 'bg-red-100 text-red-700' :
+                            dx.features.severity === 'severe' ? 'bg-orange-100 text-orange-700' :
+                            'bg-slate-100'
+                          }`}>
+                            {dx.features.severity.replace('_', ' ')}
+                          </span>
+                        )}
+                        {dx.features.acuity && (
+                          <span className="px-2 py-0.5 bg-slate-100 rounded">{dx.features.acuity}</span>
+                        )}
+                        {dx.features.system && (
+                          <span className="px-2 py-0.5 bg-slate-100 rounded">{dx.features.system}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Clinical Pearls */}
       {clinical_pearls && clinical_pearls.length > 0 && (
@@ -231,44 +295,42 @@ function ProfessionalResults({ result, onStartOver }) {
       )}
 
       {/* Score Distribution Chart (Simple) */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="font-semibold text-slate-900">Score Distribution</h3>
-        </div>
-        <div className="card-body">
-          <div className="space-y-2">
-            {differential.slice(0, 10).map((dx, idx) => (
-              <div key={idx} className="flex items-center gap-3">
-                <span className="text-xs text-slate-400 w-4 text-right">{idx + 1}</span>
-                <span className="text-sm text-slate-700 w-40 truncate" title={dx.name}>
-                  {dx.name}
-                </span>
-                <div className="flex-1 h-6 bg-slate-100 rounded overflow-hidden">
-                  <div 
-                    className={`h-full ${getScoreColor(dx.score)} flex items-center justify-end pr-2`}
-                    style={{ width: `${Math.max(dx.score * 100, 5)}%` }}
-                  >
-                    <span className="text-xs text-white font-medium">
-                      {(dx.score * 100).toFixed(0)}%
-                    </span>
+      {differential.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <h3 className="font-semibold text-slate-900">Score Distribution</h3>
+          </div>
+          <div className="card-body">
+            <div className="space-y-2">
+              {differential.slice(0, 10).map((dx, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-4 text-right">{dx.rank || idx + 1}</span>
+                  <span className="text-sm text-slate-700 w-40 truncate" title={dx.name}>
+                    {dx.name}
+                  </span>
+                  <div className="flex-1 h-6 bg-slate-100 rounded overflow-hidden">
+                    <div 
+                      className={`h-full ${getScoreColor(dx.score)} flex items-center justify-end pr-2`}
+                      style={{ width: `${Math.max(dx.score * 100, 5)}%` }}
+                    >
+                      <span className="text-xs text-white font-medium">
+                        {(dx.score * 100).toFixed(0)}%
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Metadata */}
-      {metadata && (
-        <div className="text-center text-sm text-slate-500">
-          <p>
-            Processing time: {metadata.processing_time_ms?.toFixed(0) || 'N/A'}ms • 
-            Model: {metadata.model_version || 'MCQ Oracle'} • 
-            Template: {metadata.template_used || 'default'}
-          </p>
-        </div>
-      )}
+      <div className="text-center text-sm text-slate-500">
+        <p>
+          MCQ Oracle Professional Analysis • {differential.length} diagnoses evaluated
+        </p>
+      </div>
 
       {/* Actions */}
       <div className="flex justify-center pt-4">
