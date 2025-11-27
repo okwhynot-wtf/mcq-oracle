@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   CheckCircle, AlertTriangle, ArrowRight, Download, 
   ChevronDown, ChevronUp, RotateCcw, FileText, 
-  Activity, Shield
+  Activity, Shield, XCircle
 } from 'lucide-react';
 
 function PatientResults({ result, onStartOver }) {
@@ -20,6 +20,103 @@ function PatientResults({ result, onStartOver }) {
         <button onClick={onStartOver} className="btn btn-primary">
           Try Again
         </button>
+      </div>
+    );
+  }
+
+  // Check for insufficient signal - check both patient and professional result
+  const inputQuality = patientResult.input_quality || proResult?.input_quality;
+  const isInsufficientSignal = inputQuality && !inputQuality.is_valid;
+
+  // If insufficient signal, show warning instead of results
+  if (isInsufficientSignal) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Warning Card */}
+        <div className="card border-l-4 border-l-red-500 bg-red-50">
+          <div className="card-body">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
+              <div>
+                <h2 className="text-xl font-bold text-red-900 mb-2">
+                  Unable to Analyze Your Symptoms
+                </h2>
+                <p className="text-red-700">
+                  {inputQuality.warning_message || 
+                   "We couldn't find enough information to provide a meaningful assessment."}
+                </p>
+                {inputQuality.recommendation && (
+                  <p className="text-red-600 mt-3 text-sm">
+                    <strong>What to do:</strong> {inputQuality.recommendation}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Suggestions */}
+        <div className="card">
+          <div className="card-header">
+            <h3 className="font-semibold text-slate-900">Tips for better results</h3>
+          </div>
+          <div className="card-body">
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2 text-slate-700">
+                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <span>Describe your main symptom (e.g., "headache", "chest pain", "fatigue")</span>
+              </li>
+              <li className="flex items-start gap-2 text-slate-700">
+                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <span>Mention how long you've had the symptom</span>
+              </li>
+              <li className="flex items-start gap-2 text-slate-700">
+                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <span>Include any other symptoms you're experiencing</span>
+              </li>
+              <li className="flex items-start gap-2 text-slate-700">
+                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <span>Note if anything makes it better or worse</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* When to See Doctor Anyway */}
+        <div className="card border-l-4 border-l-primary-500">
+          <div className="card-body">
+            <div className="flex items-start gap-3">
+              <Activity className="w-6 h-6 text-primary-600 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-1">When to see a doctor</h3>
+                <p className="text-slate-700">
+                  If you have health concerns, please consult a healthcare professional. 
+                  This tool is for educational purposes and cannot replace medical advice.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Try Again */}
+        <div className="flex justify-center pt-4">
+          <button
+            onClick={onStartOver}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Try again with more details
+          </button>
+        </div>
+
+        {/* Disclaimer */}
+        <div className="text-center text-sm text-slate-500 pb-8">
+          <p>
+            This is an educational tool and does not provide medical advice.
+            <br />
+            Always consult a healthcare professional for medical concerns.
+          </p>
+        </div>
       </div>
     );
   }

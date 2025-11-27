@@ -23,9 +23,6 @@ function ProfessionalResults({ result, onStartOver }) {
   const [copiedId, setCopiedId] = useState(null);
   const [downloadingReport, setDownloadingReport] = useState(false);
   
-  // Debug: log the result structure
-  console.log('Professional Result:', JSON.stringify(result, null, 2));
-  
   if (!result || result.error || !result.success) {
     return (
       <div className="card p-8 text-center max-w-2xl mx-auto">
@@ -43,13 +40,14 @@ function ProfessionalResults({ result, onStartOver }) {
   const proResult = result.professional_result || {};
   const differential = proResult.differential || [];
   const geometry = proResult.geometry || null;
-  const metadata = proResult.metadata || result.metadata || {};
-  const clinical_pearls = proResult.clinical_pearls || [];
   const selectedHypothesis = proResult.selected_hypothesis || differential[0] || null;
   const spectralRisk = proResult.spectral_risk || null;
   const drugAlerts = proResult.drug_alerts || [];
   const inputQuality = proResult.input_quality || null;
   const similarDiagnoses = proResult.similar_diagnoses || [];
+
+  // Check if input is valid - THIS IS THE KEY CHECK
+  const isInputInvalid = inputQuality && !inputQuality.is_valid;
 
   const copyToClipboard = async (text, id) => {
     await navigator.clipboard.writeText(text);
@@ -111,44 +109,112 @@ function ProfessionalResults({ result, onStartOver }) {
 
     } catch (error) {
       console.error('Report download failed:', error);
-      alert('Failed to generate report. Please try again.');
+      alert('Failed to generate report. The report feature may not be available on this deployment.');
     } finally {
       setDownloadingReport(false);
     }
   };
 
-  // Check if input is valid
-  const isInputInvalid = inputQuality && !inputQuality.is_valid;
-
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Input Quality Warning */}
-      {isInputInvalid && (
+  // =====================================================
+  // IF INPUT IS INVALID, SHOW ONLY THE WARNING
+  // =====================================================
+  if (isInputInvalid) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Input Quality Warning - MAIN CONTENT */}
         <div className="card border-l-4 border-l-red-500 bg-red-50">
           <div className="card-body">
             <div className="flex items-start gap-3">
-              <XCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+              <XCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
               <div>
-                <h3 className="font-semibold text-red-900 text-lg">Unable to Provide Reliable Diagnosis</h3>
-                <p className="text-red-700 mt-1">
+                <h2 className="text-xl font-bold text-red-900 mb-2">
+                  Unable to Provide Reliable Diagnosis
+                </h2>
+                <p className="text-red-700">
                   {inputQuality.warning_message}
                 </p>
                 {inputQuality.recommendation && (
-                  <p className="text-red-600 mt-2 text-sm">
+                  <p className="text-red-600 mt-3">
                     <strong>Recommendation:</strong> {inputQuality.recommendation}
                   </p>
                 )}
-                <div className="mt-3 flex items-center gap-4 text-sm text-red-600">
-                  <span>Quality: {inputQuality.quality_level}</span>
-                  <span>Unique scores: {inputQuality.medical_signal_count}</span>
-                  <span>Score variance: {inputQuality.medical_signal_density?.toFixed(3) || '0'}</span>
+                <div className="mt-4 flex items-center gap-4 text-sm text-red-600">
+                  <span className="px-2 py-1 bg-red-100 rounded">
+                    Quality: {inputQuality.quality_level}
+                  </span>
+                  <span className="px-2 py-1 bg-red-100 rounded">
+                    Unique scores: {inputQuality.medical_signal_count}
+                  </span>
+                  <span className="px-2 py-1 bg-red-100 rounded">
+                    Score variance: {inputQuality.medical_signal_density?.toFixed(3) || '0'}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      )}
 
+        {/* Explanation */}
+        <div className="card">
+          <div className="card-header">
+            <h3 className="font-semibold text-slate-900">Why can't MCQ Oracle analyze this?</h3>
+          </div>
+          <div className="card-body">
+            <p className="text-slate-600 mb-4">
+              MCQ Oracle uses spectral geometry to differentiate between diagnostic hypotheses. 
+              When all hypotheses score identically, it indicates that the input lacks 
+              clinical information that would help distinguish one diagnosis from another.
+            </p>
+            <div className="bg-slate-50 rounded-lg p-4">
+              <h4 className="font-medium text-slate-900 mb-2">For best results, provide:</h4>
+              <ul className="space-y-2 text-slate-700">
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Patient symptoms and chief complaint
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Relevant medical history
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Physical examination findings
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Vital signs and investigation results
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-center pt-4">
+          <button
+            onClick={onStartOver}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Try Again with Clinical Information
+          </button>
+        </div>
+
+        {/* Disclaimer */}
+        <div className="text-center text-sm text-slate-500 pb-8">
+          <p>
+            Clinical decision support tool — requires clinical information to function.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // =====================================================
+  // NORMAL RENDERING - Only if input is VALID
+  // =====================================================
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -253,7 +319,7 @@ function ProfessionalResults({ result, onStartOver }) {
       )}
 
       {/* Selected Hypothesis */}
-      {selectedHypothesis && !isInputInvalid && (
+      {selectedHypothesis && (
         <div className="card border-l-4 border-l-green-500">
           <div className="card-body">
             <div className="flex items-start gap-3">
@@ -306,9 +372,6 @@ function ProfessionalResults({ result, onStartOver }) {
                     </span>
                   </div>
                   <p className="text-sm text-purple-700 mt-1">{alert.mechanism}</p>
-                  {alert.recommendation && (
-                    <p className="text-sm text-purple-600 mt-1 italic">{alert.recommendation}</p>
-                  )}
                 </div>
               ))}
             </div>
@@ -381,7 +444,7 @@ function ProfessionalResults({ result, onStartOver }) {
           </div>
           <div className="card-body">
             <p className="text-sm text-slate-600 mb-3">
-              These diagnosis pairs have high similarity (κ ≈ 1.0) and may need additional tests to differentiate:
+              These diagnosis pairs have high similarity and may need additional tests to differentiate:
             </p>
             <div className="space-y-2">
               {similarDiagnoses.slice(0, 3).map((pair, idx) => (
@@ -398,7 +461,7 @@ function ProfessionalResults({ result, onStartOver }) {
       )}
 
       {/* Main Differential */}
-      {differential.length > 0 && !isInputInvalid && (
+      {differential.length > 0 && (
         <div className="card">
           <div className="card-header">
             <h3 className="font-semibold text-slate-900">Ranked Differential</h3>
@@ -512,7 +575,7 @@ function ProfessionalResults({ result, onStartOver }) {
       )}
 
       {/* Score Distribution Chart */}
-      {differential.length > 0 && !isInputInvalid && (
+      {differential.length > 0 && (
         <div className="card">
           <div className="card-header">
             <h3 className="font-semibold text-slate-900">Score Distribution</h3>
@@ -546,7 +609,6 @@ function ProfessionalResults({ result, onStartOver }) {
       <div className="text-center text-sm text-slate-500">
         <p>
           MCQ Oracle Professional Analysis • {differential.length} diagnoses evaluated
-          {inputQuality && ` • Input quality: ${inputQuality.quality_level}`}
         </p>
       </div>
 
