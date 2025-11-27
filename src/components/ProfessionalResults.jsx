@@ -4,8 +4,22 @@ import {
   TrendingUp, Target, Layers, GitBranch, Copy, Check
 } from 'lucide-react';
 
+// Helper to safely get string from item (handles both strings and objects)
+const getDisplayText = (item) => {
+  if (typeof item === 'string') return item;
+  if (item?.name) return item.name;
+  if (item?.text) return item.text;
+  if (item?.value) return item.value;
+  if (item?.feature) return item.feature;
+  if (item?.flag) return item.flag;
+  return JSON.stringify(item);
+};
+
 function ProfessionalResults({ result, onStartOver }) {
   const [copiedId, setCopiedId] = useState(null);
+  
+  // Debug: log the result structure
+  console.log('Professional Result:', JSON.stringify(result, null, 2));
   
   if (!result || result.error) {
     return (
@@ -37,7 +51,10 @@ function ProfessionalResults({ result, onStartOver }) {
 
   const formatDifferentialForCopy = () => {
     return differential
-      .map((dx, i) => `${i + 1}. ${dx.name} (${(dx.score * 100).toFixed(0)}%)${dx.key_features ? ` - ${dx.key_features.join(', ')}` : ''}`)
+      .map((dx, i) => {
+        const features = dx.key_features?.map(getDisplayText).join(', ') || '';
+        return `${i + 1}. ${dx.name} (${(dx.score * 100).toFixed(0)}%)${features ? ` - ${features}` : ''}`;
+      })
       .join('\n');
   };
 
@@ -156,7 +173,7 @@ function ProfessionalResults({ result, onStartOver }) {
                   </div>
                   
                   {dx.reasoning && (
-                    <p className="text-sm text-slate-600 mb-2">{dx.reasoning}</p>
+                    <p className="text-sm text-slate-600 mb-2">{getDisplayText(dx.reasoning)}</p>
                   )}
                   
                   {dx.key_features && dx.key_features.length > 0 && (
@@ -166,7 +183,7 @@ function ProfessionalResults({ result, onStartOver }) {
                           key={fidx}
                           className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs"
                         >
-                          {feature}
+                          {getDisplayText(feature)}
                         </span>
                       ))}
                     </div>
@@ -181,7 +198,7 @@ function ProfessionalResults({ result, onStartOver }) {
                             key={fidx}
                             className="px-2 py-0.5 bg-red-50 text-red-600 rounded text-xs"
                           >
-                            {flag}
+                            {getDisplayText(flag)}
                           </span>
                         ))}
                       </div>
@@ -205,7 +222,7 @@ function ProfessionalResults({ result, onStartOver }) {
               {clinical_pearls.map((pearl, idx) => (
                 <li key={idx} className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">{pearl}</span>
+                  <span className="text-slate-700">{getDisplayText(pearl)}</span>
                 </li>
               ))}
             </ul>
