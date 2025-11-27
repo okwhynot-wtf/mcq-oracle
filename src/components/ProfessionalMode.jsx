@@ -71,36 +71,23 @@ function ProfessionalMode() {
     setError(null);
 
     try {
-      // Convert form data to the expected format
+      // Backend expects flat structure, not nested ISBAR
       const input = {
-        identification: {
-          age: formData.identification.age ? parseInt(formData.identification.age) : null,
-          sex: formData.identification.sex || null,
-          chief_complaint: formData.identification.chief_complaint,
-        },
-        situation: {
-          presenting_problem: formData.situation.presenting_problem,
-          onset: formData.situation.onset || null,
-          severity: formData.situation.severity || null,
-          context: formData.situation.context || null,
-        },
-        background: {
-          medical_history: formData.background.medical_history || null,
-          medications: formData.background.medications || null,
-          allergies: formData.background.allergies || null,
-          social_history: formData.background.social_history || null,
-        },
-        assessment: {
-          vital_signs: formData.assessment.vital_signs || null,
-          physical_exam: formData.assessment.physical_exam || null,
-          investigations: formData.assessment.investigations || null,
-          clinical_impression: formData.assessment.clinical_impression || null,
-        },
-        recommendation: {
-          working_diagnosis: formData.recommendation.working_diagnosis || null,
-          plan: formData.recommendation.plan || null,
-          urgency: formData.recommendation.urgency,
-        },
+        age: formData.identification.age || '',
+        sex: formData.identification.sex || '',
+        chief_complaint: formData.identification.chief_complaint,
+        symptoms: formData.situation.presenting_problem,
+        onset: formData.situation.onset || null,
+        severity: formData.situation.severity ? parseInt(formData.situation.severity) : null,
+        duration: formData.situation.context || null,
+        medical_history: formData.background.medical_history || null,
+        medications: formData.background.medications || null,
+        allergies: formData.background.allergies || null,
+        social_history: formData.background.social_history || null,
+        vital_signs: formData.assessment.vital_signs || null,
+        physical_exam: formData.assessment.physical_exam || null,
+        investigations: formData.assessment.investigations || null,
+        clinical_question: formData.recommendation.working_diagnosis || null,
       };
 
       const response = await analyzeProfessional(input, selectedTemplate);
@@ -120,7 +107,10 @@ function ProfessionalMode() {
   };
 
   const isFormValid = () => {
+    // Backend requires: age, sex, chief_complaint, symptoms
     return (
+      formData.identification.age.trim() &&
+      formData.identification.sex.trim() &&
       formData.identification.chief_complaint.trim() &&
       formData.situation.presenting_problem.trim()
     );
@@ -187,7 +177,7 @@ function ProfessionalMode() {
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="label">Age</label>
+                <label className="label">Age *</label>
                 <input
                   type="number"
                   value={formData.identification.age}
@@ -197,7 +187,7 @@ function ProfessionalMode() {
                 />
               </div>
               <div>
-                <label className="label">Sex</label>
+                <label className="label">Sex *</label>
                 <select
                   value={formData.identification.sex}
                   onChange={(e) => handleInputChange('identification', 'sex', e.target.value)}
@@ -235,7 +225,7 @@ function ProfessionalMode() {
             </div>
             
             <div>
-              <label className="label">Presenting Problem *</label>
+              <label className="label">Presenting Problem / Symptoms *</label>
               <textarea
                 value={formData.situation.presenting_problem}
                 onChange={(e) => handleInputChange('situation', 'presenting_problem', e.target.value)}
@@ -438,7 +428,7 @@ function ProfessionalMode() {
       <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg mb-6">
         <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
         <div className="text-sm text-blue-700">
-          <p className="font-medium">Required fields: Chief Complaint and Presenting Problem</p>
+          <p className="font-medium">Required fields: Age, Sex, Chief Complaint, and Presenting Problem</p>
           <p className="mt-1">
             The more information you provide, the more accurate the differential diagnosis will be.
           </p>
