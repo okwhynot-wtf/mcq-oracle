@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #3b82f6;
+  --primary-dark: #1d4ed8;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Confidence bars */
+.confidence-bar {
+  @apply h-2 rounded-full bg-slate-200 overflow-hidden;
+}
+
+.confidence-fill {
+  @apply h-full rounded-full transition-all duration-500;
+}
+
+/* Cards */
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-slate-200;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-slate-100;
+}
+
+.card-body {
+  @apply p-6;
+}
+
+/* Form inputs */
+.input {
+  @apply w-full px-4 py-3 rounded-lg border border-slate-300 
+         focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 
+         outline-none transition-all;
+}
+
+.input:disabled {
+  @apply bg-slate-100 cursor-not-allowed;
+}
+
+.label {
+  @apply block text-sm font-medium text-slate-700 mb-1;
+}
+
+/* Buttons */
+.btn {
+  @apply px-6 py-3 rounded-lg font-medium transition-all 
+         focus:outline-none focus:ring-2 focus:ring-offset-2
+         disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply bg-primary-600 text-white hover:bg-primary-700 
+         focus:ring-primary-500;
+}
+
+.btn-secondary {
+  @apply bg-slate-100 text-slate-700 hover:bg-slate-200 
+         focus:ring-slate-500;
+}
+
+.btn-lg {
+  @apply px-8 py-4 text-lg;
+}
+
+/* Tabs */
+.tab {
+  @apply px-4 py-2 font-medium text-slate-600 border-b-2 border-transparent
+         hover:text-slate-900 transition-colors cursor-pointer;
+}
+
+.tab.active {
+  @apply text-primary-600 border-primary-600;
+}
+
+/* Results */
+.result-card {
+  @apply card overflow-hidden;
+}
+
+.result-header {
+  @apply px-6 py-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white;
+}
+
+.diagnosis-item {
+  @apply p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors;
+}
+
+/* Severity indicator */
+.severity-low { @apply text-green-600 bg-green-50; }
+.severity-moderate { @apply text-yellow-600 bg-yellow-50; }
+.severity-high { @apply text-orange-600 bg-orange-50; }
+.severity-critical { @apply text-red-600 bg-red-50; }
