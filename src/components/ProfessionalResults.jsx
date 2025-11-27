@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { 
   CheckCircle, AlertTriangle, RotateCcw, Activity,
-  TrendingUp, Target, Layers, GitBranch, Copy, Check
+  TrendingUp, Target, Layers, GitBranch, Copy, Check,
+  Download, AlertCircle, ShieldAlert, Pill, FileText, XCircle
 } from 'lucide-react';
+
+// API base URL - adjust as needed
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 // Helper to safely get string from item (handles both strings and objects)
 const getDisplayText = (item) => {
@@ -17,6 +21,7 @@ const getDisplayText = (item) => {
 
 function ProfessionalResults({ result, onStartOver }) {
   const [copiedId, setCopiedId] = useState(null);
+  const [downloadingReport, setDownloadingReport] = useState(false);
   
   // Debug: log the result structure
   console.log('Professional Result:', JSON.stringify(result, null, 2));
@@ -41,6 +46,10 @@ function ProfessionalResults({ result, onStartOver }) {
   const metadata = proResult.metadata || result.metadata || {};
   const clinical_pearls = proResult.clinical_pearls || [];
   const selectedHypothesis = proResult.selected_hypothesis || differential[0] || null;
+  const spectralRisk = proResult.spectral_risk || null;
+  const drugAlerts = proResult.drug_alerts || [];
+  const inputQuality = proResult.input_quality || null;
+  const similarDiagnoses = proResult.similar_diagnoses || [];
 
   const copyToClipboard = async (text, id) => {
     await navigator.clipboard.writeText(text);
@@ -55,6 +64,16 @@ function ProfessionalResults({ result, onStartOver }) {
     return 'bg-red-400';
   };
 
+  const getRiskColor = (level) => {
+    switch (level) {
+      case 'critical': return 'bg-red-600 text-white';
+      case 'high': return 'bg-orange-500 text-white';
+      case 'moderate': return 'bg-yellow-500 text-slate-900';
+      case 'low': return 'bg-green-500 text-white';
+      default: return 'bg-slate-400 text-white';
+    }
+  };
+
   const formatDifferentialForCopy = () => {
     if (!differential || differential.length === 0) return '';
     return differential
@@ -65,8 +84,71 @@ function ProfessionalResults({ result, onStartOver }) {
       .join('\n');
   };
 
+  // Download PDF report
+  const downloadReport = async () => {
+    setDownloadingReport(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/report/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          professional_result: proResult,
+          report_id: `MCQ-${Date.now()}`
+        })
+      });
+
+      if (!response.ok) throw new Error('Report generation failed');
+
+      const { pdf_base64, filename } = await response.json();
+
+      // Create download link
+      const link = document.createElement('a');
+      link.href = `data:application/pdf;base64,${pdf_base64}`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+    } catch (error) {
+      console.error('Report download failed:', error);
+      alert('Failed to generate report. Please try again.');
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
+
+  // Check if input is valid
+  const isInputInvalid = inputQuality && !inputQuality.is_valid;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {/* Input Quality Warning */}
+      {isInputInvalid && (
+        <div className="card border-l-4 border-l-red-500 bg-red-50">
+          <div className="card-body">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-red-900 text-lg">Unable to Provide Reliable Diagnosis</h3>
+                <p className="text-red-700 mt-1">
+                  {inputQuality.warning_message}
+                </p>
+                {inputQuality.recommendation && (
+                  <p className="text-red-600 mt-2 text-sm">
+                    <strong>Recommendation:</strong> {inputQuality.recommendation}
+                  </p>
+                )}
+                <div className="mt-3 flex items-center gap-4 text-sm text-red-600">
+                  <span>Quality: {inputQuality.quality_level}</span>
+                  <span>Medical signals: {inputQuality.medical_signal_count}</span>
+                  <span>Confidence: {(inputQuality.confidence * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -75,28 +157,103 @@ function ProfessionalResults({ result, onStartOver }) {
             {differential.length} diagnoses considered • MCQ Oracle
           </p>
         </div>
-        {differential.length > 0 && (
+        <div className="flex gap-2">
+          {differential.length > 0 && (
+            <button
+              onClick={() => copyToClipboard(formatDifferentialForCopy(), 'all')}
+              className="btn btn-secondary flex items-center gap-2"
+            >
+              {copiedId === 'all' ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy All
+                </>
+              )}
+            </button>
+          )}
           <button
-            onClick={() => copyToClipboard(formatDifferentialForCopy(), 'all')}
-            className="btn btn-secondary flex items-center gap-2"
+            onClick={downloadReport}
+            disabled={downloadingReport}
+            className="btn btn-primary flex items-center gap-2"
           >
-            {copiedId === 'all' ? (
+            {downloadingReport ? (
               <>
-                <Check className="w-4 h-4" />
-                Copied
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Generating...
               </>
             ) : (
               <>
-                <Copy className="w-4 h-4" />
-                Copy All
+                <FileText className="w-4 h-4" />
+                Download Report
               </>
             )}
           </button>
-        )}
+        </div>
       </div>
 
+      {/* Risk Assessment Alert */}
+      {spectralRisk && spectralRisk.risk_level !== 'low' && (
+        <div className={`card border-l-4 ${
+          spectralRisk.risk_level === 'critical' ? 'border-l-red-600 bg-red-50' :
+          spectralRisk.risk_level === 'high' ? 'border-l-orange-500 bg-orange-50' :
+          'border-l-yellow-500 bg-yellow-50'
+        }`}>
+          <div className="card-body">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className={`w-6 h-6 flex-shrink-0 ${
+                spectralRisk.risk_level === 'critical' ? 'text-red-600' :
+                spectralRisk.risk_level === 'high' ? 'text-orange-600' :
+                'text-yellow-600'
+              }`} />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h3 className={`font-semibold text-lg ${
+                    spectralRisk.risk_level === 'critical' ? 'text-red-900' :
+                    spectralRisk.risk_level === 'high' ? 'text-orange-900' :
+                    'text-yellow-900'
+                  }`}>
+                    Risk Assessment: {spectralRisk.risk_level.toUpperCase()}
+                  </h3>
+                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${getRiskColor(spectralRisk.risk_level)}`}>
+                    {(spectralRisk.risk_score * 100).toFixed(0)}%
+                  </span>
+                </div>
+                <p className="text-slate-700 mt-1">
+                  <strong>Primary Threat:</strong> {spectralRisk.dominant_risk}
+                </p>
+                
+                {spectralRisk.alerts && spectralRisk.alerts.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {spectralRisk.alerts.slice(0, 3).map((alert, idx) => (
+                      <div key={idx} className="bg-white bg-opacity-60 rounded p-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{alert.category}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            alert.severity === 'critical' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'
+                          }`}>
+                            {alert.severity}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600 mt-1">
+                          <strong>Action:</strong> {alert.action}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Selected Hypothesis */}
-      {selectedHypothesis && (
+      {selectedHypothesis && !isInputInvalid && (
         <div className="card border-l-4 border-l-green-500">
           <div className="card-body">
             <div className="flex items-start gap-3">
@@ -125,6 +282,40 @@ function ProfessionalResults({ result, onStartOver }) {
         </div>
       )}
 
+      {/* Drug Alerts */}
+      {drugAlerts && drugAlerts.length > 0 && (
+        <div className="card border-l-4 border-l-purple-500">
+          <div className="card-header">
+            <div className="flex items-center gap-2">
+              <Pill className="w-5 h-5 text-purple-500" />
+              <h3 className="font-semibold text-slate-900">Drug Interaction Alerts</h3>
+            </div>
+          </div>
+          <div className="card-body">
+            <div className="space-y-3">
+              {drugAlerts.slice(0, 3).map((alert, idx) => (
+                <div key={idx} className="bg-purple-50 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-purple-900">
+                      {alert.drug} → {alert.syndrome?.replace(/_/g, ' ')}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      alert.severity === 'severe' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'
+                    }`}>
+                      {alert.severity}
+                    </span>
+                  </div>
+                  <p className="text-sm text-purple-700 mt-1">{alert.mechanism}</p>
+                  {alert.recommendation && (
+                    <p className="text-sm text-purple-600 mt-1 italic">{alert.recommendation}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Geometry Overview */}
       {geometry && (
         <div className="card">
@@ -135,34 +326,40 @@ function ProfessionalResults({ result, onStartOver }) {
             </div>
           </div>
           <div className="card-body">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
               <div className="bg-slate-50 rounded-lg p-4 text-center">
-                <TrendingUp className="w-5 h-5 text-primary-500 mx-auto mb-2" />
+                <p className="text-xs text-slate-500 mb-1">Spectral Gap (Δ)</p>
                 <p className="text-2xl font-bold text-slate-900">
-                  {geometry.spectral_gap?.toFixed(1) || 'N/A'}
+                  {geometry.spectral_gap?.toFixed(2) || 'N/A'}
                 </p>
-                <p className="text-xs text-slate-500">Spectral Gap</p>
               </div>
               <div className="bg-slate-50 rounded-lg p-4 text-center">
-                <Target className="w-5 h-5 text-primary-500 mx-auto mb-2" />
+                <p className="text-xs text-slate-500 mb-1">Viscosity (λ)</p>
                 <p className="text-2xl font-bold text-slate-900">
-                  {geometry.feature_clusters || 'N/A'}
+                  {geometry.information_viscosity?.toFixed(3) || 'N/A'}
                 </p>
-                <p className="text-xs text-slate-500">Feature Clusters</p>
               </div>
               <div className="bg-slate-50 rounded-lg p-4 text-center">
-                <Activity className="w-5 h-5 text-primary-500 mx-auto mb-2" />
+                <p className="text-xs text-slate-500 mb-1">Entropy (S)</p>
                 <p className="text-2xl font-bold text-slate-900">
-                  {geometry.score_spread ? `${(geometry.score_spread * 100).toFixed(0)}%` : 'N/A'}
+                  {geometry.von_neumann_entropy?.toFixed(2) || 'N/A'}
                 </p>
-                <p className="text-xs text-slate-500">Score Spread</p>
               </div>
               <div className="bg-slate-50 rounded-lg p-4 text-center">
-                <GitBranch className="w-5 h-5 text-primary-500 mx-auto mb-2" />
+                <p className="text-xs text-slate-500 mb-1">Curvature (κ)</p>
                 <p className="text-2xl font-bold text-slate-900">
-                  {geometry.top_gap ? `${(geometry.top_gap * 100).toFixed(0)}%` : 'N/A'}
+                  {geometry.mean_curvature?.toFixed(2) || 'N/A'}
                 </p>
-                <p className="text-xs text-slate-500">Top Gap</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-4 text-center">
+                <p className="text-xs text-slate-500 mb-1">Confidence</p>
+                <p className={`text-2xl font-bold ${
+                  geometry.confidence_level === 'high' ? 'text-green-600' :
+                  geometry.confidence_level === 'moderate' ? 'text-yellow-600' :
+                  'text-red-600'
+                }`}>
+                  {geometry.confidence_score ? `${(geometry.confidence_score * 100).toFixed(0)}%` : 'N/A'}
+                </p>
               </div>
             </div>
             
@@ -173,8 +370,35 @@ function ProfessionalResults({ result, onStartOver }) {
         </div>
       )}
 
+      {/* Similar Diagnoses Warning */}
+      {similarDiagnoses && similarDiagnoses.length > 0 && (
+        <div className="card">
+          <div className="card-header">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              <h3 className="font-semibold text-slate-900">Diagnoses Requiring Differentiation</h3>
+            </div>
+          </div>
+          <div className="card-body">
+            <p className="text-sm text-slate-600 mb-3">
+              These diagnosis pairs have high similarity (κ ≈ 1.0) and may need additional tests to differentiate:
+            </p>
+            <div className="space-y-2">
+              {similarDiagnoses.slice(0, 3).map((pair, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">{pair.diagnosis_a}</span>
+                  <span className="text-slate-400">↔</span>
+                  <span className="font-medium">{pair.diagnosis_b}</span>
+                  <span className="text-xs text-slate-500">(κ={pair.curvature?.toFixed(2)})</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Differential */}
-      {differential.length > 0 && (
+      {differential.length > 0 && !isInputInvalid && (
         <div className="card">
           <div className="card-header">
             <h3 className="font-semibold text-slate-900">Ranked Differential</h3>
@@ -198,6 +422,11 @@ function ProfessionalResults({ result, onStartOver }) {
                     <div className="flex items-center justify-between gap-4 mb-2">
                       <h4 className={`font-semibold ${idx === 0 ? 'text-primary-900' : 'text-slate-900'}`}>
                         {dx.name}
+                        {dx.drug_induced_flag && (
+                          <span className="ml-2 text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded">
+                            💊 Drug-related
+                          </span>
+                        )}
                       </h4>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-medium text-slate-600">
@@ -216,6 +445,13 @@ function ProfessionalResults({ result, onStartOver }) {
                     {dx.coverage && (
                       <p className="text-sm text-slate-500 mb-2">
                         Coverage: {(dx.coverage * 100).toFixed(0)}%
+                      </p>
+                    )}
+                    
+                    {/* Drug note */}
+                    {dx.drug_note && (
+                      <p className="text-sm text-purple-600 mb-2 italic">
+                        {dx.drug_note}
                       </p>
                     )}
                     
@@ -275,27 +511,8 @@ function ProfessionalResults({ result, onStartOver }) {
         </div>
       )}
 
-      {/* Clinical Pearls */}
-      {clinical_pearls && clinical_pearls.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <h3 className="font-semibold text-slate-900">Clinical Pearls</h3>
-          </div>
-          <div className="card-body">
-            <ul className="space-y-2">
-              {clinical_pearls.map((pearl, idx) => (
-                <li key={idx} className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-700">{getDisplayText(pearl)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* Score Distribution Chart (Simple) */}
-      {differential.length > 0 && (
+      {/* Score Distribution Chart */}
+      {differential.length > 0 && !isInputInvalid && (
         <div className="card">
           <div className="card-header">
             <h3 className="font-semibold text-slate-900">Score Distribution</h3>
@@ -329,11 +546,12 @@ function ProfessionalResults({ result, onStartOver }) {
       <div className="text-center text-sm text-slate-500">
         <p>
           MCQ Oracle Professional Analysis • {differential.length} diagnoses evaluated
+          {inputQuality && ` • Input quality: ${inputQuality.quality_level}`}
         </p>
       </div>
 
       {/* Actions */}
-      <div className="flex justify-center pt-4">
+      <div className="flex justify-center gap-4 pt-4">
         <button
           onClick={onStartOver}
           className="btn btn-secondary flex items-center gap-2"
