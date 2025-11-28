@@ -207,16 +207,20 @@ function ProfessionalMode() {
 
   const isFormValid = () => {
     if (inputMode === 'form') {
-      return (
-        formData.identification.age.trim() &&
-        formData.identification.sex.trim() &&
-        formData.identification.chief_complaint.trim() &&
-        formData.situation.presenting_problem.trim()
-      );
+      // For structured form, we still suggest these but don't require them
+      // The signal detection will catch truly garbage input
+      const hasAnyContent = 
+        formData.identification.chief_complaint.trim() ||
+        formData.situation.presenting_problem.trim() ||
+        formData.background.medical_history.trim() ||
+        formData.assessment.physical_exam.trim();
+      return hasAnyContent;
     } else if (inputMode === 'upload') {
-      return extractedText.trim().length > 50;
+      // Just need some extracted text
+      return extractedText.trim().length > 20;
     } else {
-      return pastedText.trim().length > 50;
+      // Just need some pasted text
+      return pastedText.trim().length > 20;
     }
   };
 
@@ -421,7 +425,7 @@ Labs: WBC 18.2, Creatinine 180 (baseline 95), Lactate 3.2."
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="label">Age *</label>
+                    <label className="label">Age</label>
                     <input
                       type="number"
                       value={formData.identification.age}
@@ -431,7 +435,7 @@ Labs: WBC 18.2, Creatinine 180 (baseline 95), Lactate 3.2."
                     />
                   </div>
                   <div>
-                    <label className="label">Sex *</label>
+                    <label className="label">Sex</label>
                     <select
                       value={formData.identification.sex}
                       onChange={(e) => handleInputChange('identification', 'sex', e.target.value)}
@@ -446,7 +450,7 @@ Labs: WBC 18.2, Creatinine 180 (baseline 95), Lactate 3.2."
                 </div>
                 
                 <div>
-                  <label className="label">Chief Complaint *</label>
+                  <label className="label">Chief Complaint</label>
                   <input
                     type="text"
                     value={formData.identification.chief_complaint}
@@ -469,7 +473,7 @@ Labs: WBC 18.2, Creatinine 180 (baseline 95), Lactate 3.2."
                 </div>
                 
                 <div>
-                  <label className="label">Presenting Problem *</label>
+                  <label className="label">Presenting Problem</label>
                   <textarea
                     value={formData.situation.presenting_problem}
                     onChange={(e) => handleInputChange('situation', 'presenting_problem', e.target.value)}
@@ -676,9 +680,10 @@ Labs: WBC 18.2, Creatinine 180 (baseline 95), Lactate 3.2."
         <div className="text-sm text-blue-700">
           {inputMode === 'form' ? (
             <>
-              <p className="font-medium">Required fields: Age, Sex, Chief Complaint, and Presenting Problem</p>
+              <p className="font-medium">Enter clinical information in the ISBAR format</p>
               <p className="mt-1">
                 The more information you provide, the more accurate the differential diagnosis will be.
+                The system will automatically detect if there's insufficient clinical data.
               </p>
             </>
           ) : (
@@ -688,7 +693,7 @@ Labs: WBC 18.2, Creatinine 180 (baseline 95), Lactate 3.2."
               </p>
               <p className="mt-1">
                 Include patient demographics, symptoms, history, vitals, examination findings, and any investigations.
-                The system will extract relevant clinical information automatically.
+                The system will automatically extract relevant information and detect if there's insufficient clinical data.
               </p>
             </>
           )}
