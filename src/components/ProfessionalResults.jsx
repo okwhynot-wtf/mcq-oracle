@@ -262,56 +262,34 @@ function ProfessionalResults({ result, onStartOver }) {
         </div>
       </div>
 
-      {/* Risk Assessment Alert */}
-      {spectralRisk && spectralRisk.risk_level !== 'low' && (
-        <div className={`card border-l-4 ${
-          spectralRisk.risk_level === 'critical' ? 'border-l-red-600 bg-red-50' :
-          spectralRisk.risk_level === 'high' ? 'border-l-orange-500 bg-orange-50' :
-          'border-l-yellow-500 bg-yellow-50'
-        }`}>
+      {/* Critical Alerts (only shown if there are actual alerts) */}
+      {spectralRisk && spectralRisk.alerts && spectralRisk.alerts.length > 0 && (
+        <div className="card border-l-4 border-l-red-600 bg-red-50">
           <div className="card-body">
             <div className="flex items-start gap-3">
-              <ShieldAlert className={`w-6 h-6 flex-shrink-0 ${
-                spectralRisk.risk_level === 'critical' ? 'text-red-600' :
-                spectralRisk.risk_level === 'high' ? 'text-orange-600' :
-                'text-yellow-600'
-              }`} />
+              <ShieldAlert className="w-6 h-6 flex-shrink-0 text-red-600" />
               <div className="flex-1">
-                <div className="flex items-center justify-between">
-                  <h3 className={`font-semibold text-lg ${
-                    spectralRisk.risk_level === 'critical' ? 'text-red-900' :
-                    spectralRisk.risk_level === 'high' ? 'text-orange-900' :
-                    'text-yellow-900'
-                  }`}>
-                    Risk Assessment: {spectralRisk.risk_level.toUpperCase()}
-                  </h3>
-                  <span className={`px-3 py-1 rounded-full text-sm font-bold ${getRiskColor(spectralRisk.risk_level)}`}>
-                    {(spectralRisk.risk_score * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <p className="text-slate-700 mt-1">
-                  <strong>Primary Threat:</strong> {spectralRisk.dominant_risk}
-                </p>
+                <h3 className="font-semibold text-lg text-red-900">
+                  Critical Alerts
+                </h3>
                 
-                {spectralRisk.alerts && spectralRisk.alerts.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {spectralRisk.alerts.slice(0, 3).map((alert, idx) => (
-                      <div key={idx} className="bg-white bg-opacity-60 rounded p-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{alert.category}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded ${
-                            alert.severity === 'critical' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'
-                          }`}>
-                            {alert.severity}
-                          </span>
-                        </div>
-                        <p className="text-sm text-slate-600 mt-1">
-                          <strong>Action:</strong> {alert.action}
-                        </p>
+                <div className="mt-3 space-y-2">
+                  {spectralRisk.alerts.slice(0, 3).map((alert, idx) => (
+                    <div key={idx} className="bg-white bg-opacity-60 rounded p-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{alert.category}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          alert.severity === 'critical' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'
+                        }`}>
+                          {alert.severity}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <p className="text-sm text-slate-600 mt-1">
+                        <strong>Action:</strong> {alert.action}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
