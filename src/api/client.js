@@ -1,12 +1,15 @@
 /**
  * MCQ Oracle API Client
  * 
- * Supports both local Docker development and production deployment.
- * Uses relative URLs so the Vite proxy (dev) or reverse proxy (prod) handles routing.
+ * In development: Uses Vite proxy (/api -> backend:8000)
+ * In production: Set VITE_API_URL to your Railway backend URL
+ *                e.g., https://mcqoracle-production.up.railway.app
  */
 
-// Use relative URL - works with Vite proxy in dev and nginx/etc in prod
-const API_BASE = '/api';
+// Use environment variable in production, empty string for dev (uses proxy)
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+console.log('API Base URL:', API_BASE || '(using proxy)');
 
 /**
  * Unified symptom analysis
@@ -21,7 +24,7 @@ export async function analyzeSymptoms(input, mode = 'professional') {
     provider: 'openai'
   };
 
-  const response = await fetch(`${API_BASE}/analyze`, {
+  const response = await fetch(`${API_BASE}/api/analyze`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -81,7 +84,7 @@ export async function analyzeProfessional(input, templateId = 'medical_isbar') {
  * Get available templates
  */
 export async function getTemplates() {
-  const response = await fetch(`${API_BASE}/templates`);
+  const response = await fetch(`${API_BASE}/api/templates`);
   
   if (!response.ok) {
     throw new Error('Failed to load templates');
@@ -97,7 +100,7 @@ export async function extractTextFromFile(file) {
   const formData = new FormData();
   formData.append('file', file);
   
-  const response = await fetch(`${API_BASE}/extract-text`, {
+  const response = await fetch(`${API_BASE}/api/extract-text`, {
     method: 'POST',
     body: formData,
   });
@@ -114,7 +117,7 @@ export async function extractTextFromFile(file) {
  * Generate PDF report
  */
 export async function generateReport(professionalResult, patientSummary = null, reportId = null) {
-  const response = await fetch(`${API_BASE}/report/generate`, {
+  const response = await fetch(`${API_BASE}/api/report/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -138,6 +141,6 @@ export async function generateReport(professionalResult, patientSummary = null, 
  * Health check
  */
 export async function healthCheck() {
-  const response = await fetch(`${API_BASE}/health`);
+  const response = await fetch(`${API_BASE}/api/health`);
   return response.json();
 }
