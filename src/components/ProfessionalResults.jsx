@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   CheckCircle, AlertTriangle, RotateCcw, Activity,
   TrendingUp, Target, Layers, GitBranch, Copy, Check,
-  Download, AlertCircle, ShieldAlert, Pill, FileText, XCircle
+  Download, AlertCircle, Pill, FileText, XCircle
 } from 'lucide-react';
 
 // API base URL - adjust as needed
@@ -41,7 +41,6 @@ function ProfessionalResults({ result, onStartOver }) {
   const differential = proResult.differential || [];
   const geometry = proResult.geometry || null;
   const selectedHypothesis = proResult.selected_hypothesis || differential[0] || null;
-  const spectralRisk = proResult.spectral_risk || null;
   const drugAlerts = proResult.drug_alerts || [];
   const inputQuality = proResult.input_quality || null;
   const similarDiagnoses = proResult.similar_diagnoses || [];
@@ -60,16 +59,6 @@ function ProfessionalResults({ result, onStartOver }) {
     if (score >= 0.4) return 'bg-yellow-500';
     if (score >= 0.2) return 'bg-orange-500';
     return 'bg-red-400';
-  };
-
-  const getRiskColor = (level) => {
-    switch (level) {
-      case 'critical': return 'bg-red-600 text-white';
-      case 'high': return 'bg-orange-500 text-white';
-      case 'moderate': return 'bg-yellow-500 text-slate-900';
-      case 'low': return 'bg-green-500 text-white';
-      default: return 'bg-slate-400 text-white';
-    }
   };
 
   const formatDifferentialForCopy = () => {
@@ -261,40 +250,6 @@ function ProfessionalResults({ result, onStartOver }) {
           </button>
         </div>
       </div>
-
-      {/* Critical Alerts (only shown if there are actual alerts) */}
-      {spectralRisk && spectralRisk.alerts && spectralRisk.alerts.length > 0 && (
-        <div className="card border-l-4 border-l-red-600 bg-red-50">
-          <div className="card-body">
-            <div className="flex items-start gap-3">
-              <ShieldAlert className="w-6 h-6 flex-shrink-0 text-red-600" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg text-red-900">
-                  Critical Alerts
-                </h3>
-                
-                <div className="mt-3 space-y-2">
-                  {spectralRisk.alerts.slice(0, 3).map((alert, idx) => (
-                    <div key={idx} className="bg-white bg-opacity-60 rounded p-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{alert.category}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          alert.severity === 'critical' ? 'bg-red-200 text-red-800' : 'bg-orange-200 text-orange-800'
-                        }`}>
-                          {alert.severity}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600 mt-1">
-                        <strong>Action:</strong> {alert.action}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Selected Hypothesis */}
       {selectedHypothesis && (
