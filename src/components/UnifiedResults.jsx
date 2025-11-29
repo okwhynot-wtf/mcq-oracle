@@ -13,6 +13,48 @@ import { useState, useEffect, useRef } from 'react';
  * - Reasoning chain
  * - Download report
  */
+
+// Helper: Convert underscore_names to Title Case
+const formatName = (name) => {
+  if (!name) return name;
+  return name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
+};
+
+// Helper: Get ICD URL - prefer icd_url from API, fallback to code-based URL
+const getICDUrl = (hyp) => {
+  if (!hyp) return null;
+  // Use the browser URL from the API if available (uses entity ID)
+  if (hyp.icd_url) return hyp.icd_url;
+  // Fallback to code-based URL (may not work for all codes)
+  if (hyp.icd_code) return `https://icd.who.int/browse/2024-01/mms/en`;
+  return null;
+};
+
+// ICD Code Badge component with link
+const ICDCodeBadge = ({ hyp, className = "" }) => {
+  if (!hyp?.icd_code) return null;
+  
+  const url = getICDUrl(hyp);
+  
+  return (
+    <a 
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1 text-xs font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded hover:bg-indigo-100 hover:text-indigo-800 transition-colors ${className}`}
+      title={`View in WHO ICD-11 Browser: ${hyp.icd_code}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+      </svg>
+      {hyp.icd_code}
+    </a>
+  );
+};
+
 export default function UnifiedResults({ result, onNewAnalysis }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [isDownloading, setIsDownloading] = useState(false);
@@ -74,14 +116,27 @@ export default function UnifiedResults({ result, onNewAnalysis }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           professional_result: prof,
-          report_id: `mcq_${Date.now()}`
+          report_id: `mcq_${Date.now()}`,
+          format: 'html'  // Request HTML format
         })
       });
       
       if (!response.ok) throw new Error('Report generation failed');
       
       const data = await response.json();
-      if (data.pdf_base64) {
+      if (data.content_base64) {
+        // Decode base64 content
+        const content = atob(data.content_base64);
+        const mimeType = data.mime_type || 'text/html';
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.filename || 'mcq_oracle_report.html';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else if (data.pdf_base64) {
+        // Fallback for PDF (backwards compatibility)
         const byteCharacters = atob(data.pdf_base64);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -119,7 +174,46 @@ export default function UnifiedResults({ result, onNewAnalysis }) {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-indigo-200 text-sm font-medium mb-1">Leading Hypothesis</p>
-            <h1 className="text-3xl font-bold mb-2">{topHypothesis?.name || 'Unknown'}</h1>
+            <h1 className="text-3xl font-bold mb-1">{formatName(topHypothesis?.name) || 'Unknown'}</h1>
+            {topHypothesis?.icd_code && (
+              <div className="mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <a 
+                    href={getICDUrl(topHypothesis)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 bg-white/30 hover:bg-white/40 text-white text-xs font-mono px-2 py-0.5 rounded transition-colors"
+                    title="View in WHO ICD-11 Browser"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    ICD-11: {topHypothesis.icd_full_code || topHypothesis.icd_code}
+                  </a>
+                  {topHypothesis.icd_title && (
+                    <span className="text-indigo-200 text-sm italic">
+                      ({formatName(topHypothesis.icd_full_title || topHypothesis.icd_title)})
+                    </span>
+                  )}
+                </div>
+                {/* Postcoordination modifiers */}
+                {topHypothesis.icd_postcoordinations && topHypothesis.icd_postcoordinations.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {topHypothesis.icd_postcoordinations.map((pc, idx) => (
+                      <span 
+                        key={idx}
+                        className="inline-flex items-center gap-1 bg-white/20 text-white text-xs px-2 py-0.5 rounded"
+                        title={`${pc.axis}: ${pc.source_feature}`}
+                      >
+                        <span className="text-indigo-200">{pc.axis}:</span>
+                        <span className="font-mono">{pc.code}</span>
+                        <span className="text-indigo-200">({pc.title})</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-4 mt-3">
               <div className="bg-white/20 rounded-lg px-3 py-1.5">
                 <span className="text-sm">Score: </span>
@@ -279,7 +373,12 @@ function OverviewTab({ topHypothesis, differential, geometry, context }) {
               {differential.slice(0, 5).map((hyp, i) => (
                 <tr key={i} className={i === 0 ? 'bg-indigo-50' : ''}>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">#{i + 1}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{hyp.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    <div>{formatName(hyp.name)}</div>
+                    {hyp.icd_code && (
+                      <ICDCodeBadge hyp={hyp} className="mt-0.5" />
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center">
                       <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
@@ -292,7 +391,7 @@ function OverviewTab({ topHypothesis, differential, geometry, context }) {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{(hyp.coverage * 100).toFixed(0)}%</td>
-                  <td className="px-4 py-3 text-sm text-gray-500 italic">{hyp.discriminator || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 italic">{formatName(hyp.discriminator) || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -366,18 +465,91 @@ function DifferentialTab({ differential }) {
                   className={`cursor-pointer hover:bg-gray-50 ${expandedRow === i ? 'bg-indigo-50' : ''}`}
                 >
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{hyp.rank || i + 1}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 font-medium">{hyp.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    <div className="font-medium">{formatName(hyp.name)}</div>
+                    {hyp.icd_code && (
+                      <ICDCodeBadge hyp={hyp} className="mt-0.5" />
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <ScoreBar score={hyp.score} />
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{(hyp.coverage * 100).toFixed(0)}%</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{hyp.coherence?.toFixed(3) || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{hyp.discriminator || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{formatName(hyp.discriminator) || '—'}</td>
                 </tr>
                 {expandedRow === i && (
                   <tr key={`${i}-expanded`}>
                     <td colSpan={6} className="px-4 py-4 bg-gray-50">
                       <div className="grid md:grid-cols-2 gap-4">
+                        {/* ICD-11 Info */}
+                        {hyp.icd_code && (
+                          <div className="md:col-span-2 mb-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                            <div className="flex items-start gap-2">
+                              <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <div className="flex-1">
+                                <div className="font-medium text-blue-800">
+                                  <a 
+                                    href={getICDUrl(hyp)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:underline inline-flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    ICD-11: {hyp.icd_full_code || hyp.icd_code}
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                  </a>
+                                  {hyp.icd_title && (
+                                    <span className="font-normal text-blue-600 ml-2">— {formatName(hyp.icd_full_title || hyp.icd_title)}</span>
+                                  )}
+                                </div>
+                                
+                                {/* Postcoordination breakdown */}
+                                {hyp.icd_postcoordinations && hyp.icd_postcoordinations.length > 0 && (
+                                  <div className="mt-2 p-2 bg-blue-100/50 rounded">
+                                    <div className="text-xs font-medium text-blue-700 mb-1.5">Postcoordination Modifiers:</div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {hyp.icd_postcoordinations.map((pc, idx) => (
+                                        <div 
+                                          key={idx}
+                                          className="inline-flex items-center gap-1 bg-white text-xs px-2 py-1 rounded border border-blue-200"
+                                          title={pc.source_feature}
+                                        >
+                                          <span className="text-blue-500 font-medium">{pc.axis}:</span>
+                                          <span className="font-mono text-blue-800">{pc.code}</span>
+                                          <span className="text-blue-600">({pc.title})</span>
+                                          <span className="text-blue-400 text-xs">← {pc.source_feature}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {hyp.icd_definition && (
+                                  <p className="text-sm text-blue-700 mt-2">{hyp.icd_definition}</p>
+                                )}
+                                {hyp.icd_citation && (
+                                  <a 
+                                    href={getICDUrl(hyp)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-blue-500 mt-1 italic hover:underline inline-flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {hyp.icd_citation}
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <h4 className="font-medium text-green-700 mb-2">Findings Explained</h4>
                           <ul className="text-sm space-y-1">
@@ -386,7 +558,7 @@ function DifferentialTab({ differential }) {
                                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                 </svg>
-                                {f}
+                                {formatName(f)}
                               </li>
                             ))}
                             {(!hyp.findings_explained || hyp.findings_explained.length === 0) && (
@@ -402,7 +574,7 @@ function DifferentialTab({ differential }) {
                                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                                 </svg>
-                                {f}
+                                {formatName(f)}
                               </li>
                             ))}
                             {(!hyp.findings_unexplained || hyp.findings_unexplained.length === 0) && (
@@ -474,7 +646,7 @@ function GeometryTab({ geometry, differential }) {
     { key: 'spectral_gap', label: 'Spectral Gap (Δ)', desc: 'Separation between top eigenvalues. Higher = clearer winner.' },
     { key: 'information_viscosity', label: 'Information Viscosity (λ)', desc: 'How "thick" the probability flows. Higher = more diffuse.' },
     { key: 'von_neumann_entropy', label: 'Von Neumann Entropy (S)', desc: 'Quantum entropy of the density matrix. Higher = more uncertainty.' },
-    { key: 'mean_curvature', label: 'Mean Curvature (κ)', desc: 'Average curvature of hypothesis manifold. Indicates clustering.' },
+    { key: 'mean_similarity', label: 'Mean Similarity (J)', desc: 'Average Jaccard similarity between diagnoses. Higher = more overlap.' },
     { key: 'diagnostic_action', label: 'Diagnostic Action', desc: 'Total "cost" of the diagnostic path through hypothesis space.' },
     { key: 'score_spread', label: 'Score Spread', desc: 'Range between highest and lowest scores.' },
     { key: 'top_gap', label: 'Top Gap', desc: 'Difference between #1 and #2 hypothesis scores.' },
@@ -609,8 +781,8 @@ function ScoreDistributionChart({ differential }) {
       <div className="space-y-3">
         {differential.map((hyp, i) => (
           <div key={i} className="flex items-center">
-            <div className="w-32 text-sm text-gray-700 truncate pr-2" title={hyp.name}>
-              {i + 1}. {hyp.name}
+            <div className="w-32 text-sm text-gray-700 truncate pr-2" title={formatName(hyp.name)}>
+              {i + 1}. {formatName(hyp.name)}
             </div>
             <div className="flex-1 h-8 bg-gray-200 rounded relative overflow-hidden">
               <div 
@@ -669,8 +841,8 @@ function FeatureMatrixHeatmap({ differential }) {
             <th className="p-2 text-left font-medium text-gray-700">Diagnosis</th>
             {features.map(f => (
               <th key={f} className="p-2 text-center font-medium text-gray-700 max-w-20">
-                <div className="truncate transform -rotate-45 origin-left translate-y-4" title={f}>
-                  {f}
+                <div className="truncate transform -rotate-45 origin-left translate-y-4" title={formatName(f)}>
+                  {formatName(f)}
                 </div>
               </th>
             ))}
@@ -679,8 +851,8 @@ function FeatureMatrixHeatmap({ differential }) {
         <tbody>
           {differential.map((hyp, i) => (
             <tr key={i}>
-              <td className="p-2 font-medium text-gray-800 truncate max-w-32" title={hyp.name}>
-                {hyp.name}
+              <td className="p-2 font-medium text-gray-800 truncate max-w-32" title={formatName(hyp.name)}>
+                {formatName(hyp.name)}
               </td>
               {features.map(f => {
                 const value = hyp.features?.[f];
@@ -688,7 +860,7 @@ function FeatureMatrixHeatmap({ differential }) {
                   <td key={f} className="p-1">
                     <div 
                       className={`w-8 h-8 rounded ${getColor(value)} flex items-center justify-center`}
-                      title={`${f}: ${value}`}
+                      title={`${formatName(f)}: ${value}`}
                     >
                       <span className="text-white text-xs font-bold">
                         {value === 'yes' ? '✓' : value === 'no' ? '✗' : ''}
@@ -718,15 +890,15 @@ function SimilarityMatrix({ similarDiagnoses }) {
         {similarDiagnoses.map((sim, i) => (
           <div key={i} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
             <div className="flex items-center gap-3">
-              <span className="font-medium text-gray-800">{sim.diagnosis_a}</span>
+              <span className="font-medium text-gray-800">{formatName(sim.diagnosis_a)}</span>
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
-              <span className="font-medium text-gray-800">{sim.diagnosis_b}</span>
+              <span className="font-medium text-gray-800">{formatName(sim.diagnosis_b)}</span>
             </div>
             <div className="text-right">
-              <div className="text-sm font-bold text-indigo-600">κ = {sim.curvature?.toFixed(3)}</div>
-              <div className="text-xs text-gray-500">W = {sim.wasserstein_distance?.toFixed(3)}</div>
+              <div className="text-sm font-bold text-indigo-600">J = {(sim.jaccard_similarity * 100)?.toFixed(0)}%</div>
+              <div className="text-xs text-gray-500">feature overlap</div>
             </div>
           </div>
         ))}
@@ -774,7 +946,7 @@ function ScoreLandscape({ differential, geometry }) {
                 i === 0 ? 'bg-yellow-400 ring-2 ring-yellow-200' : 'bg-indigo-500'
               }`}
               style={{ left: `${x}%`, bottom: `${y}%` }}
-              title={`${hyp.name}: ${(hyp.score * 100).toFixed(1)}%`}
+              title={`${formatName(hyp.name)}: ${(hyp.score * 100).toFixed(1)}%`}
             />
           );
         })}
@@ -876,9 +1048,9 @@ function SpectralVisualization({ geometry, differential }) {
         </div>
         <div className="text-center">
           <div className="text-xl font-bold text-green-400">
-            {geometry.mean_curvature?.toFixed(3) || '—'}
+            {geometry.mean_similarity != null ? `${(geometry.mean_similarity * 100).toFixed(0)}%` : '—'}
           </div>
-          <div className="text-xs text-gray-500">Curvature</div>
+          <div className="text-xs text-gray-500">Similarity</div>
         </div>
         <div className="text-center">
           <div className="text-xl font-bold text-yellow-400">
